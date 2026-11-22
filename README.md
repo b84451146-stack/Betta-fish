@@ -5,7 +5,7 @@ An animated ASCII betta fish that grows from a spark, with your name written und
 ## Change the name
 Open `index.html` and edit the line near the top:
 
-    const NAME = new URLSearchParams(location.search).get('name') || 'KOUSHIK';
+    const NAME = new URLSearchParams(location.search).get('name') || 'ASHIF';
 
 Replace `KOUSHIK` with any name. You can also share a link ending in `?name=Anything`.
 

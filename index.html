@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The betta fish in ASCII</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;color:#5d6b73;font-family:ui-monospace,Menlo,Consolas,monospace}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center}
+  #wrap{position:relative;background:#03070d}
+  #c{display:block;cursor:pointer}
+  .hud{position:absolute;font-size:9px;line-height:1.5;color:#6b7a82;pointer-events:none;white-space:pre}
+  #tm{top:6px;right:8px;color:#9fd}
+  #st{left:8px;bottom:6px}
+  p{margin:10px 0 0;font-size:12px;opacity:.6}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div class="hud" id="tm"></div>
+  <div class="hud" id="st"></div>
+</div>
+<p>tap the fish to replay</p>
+<script>
+// ====== CHANGE YOUR NAME HERE (or share a link ending in ?name=YourName) ======
+const NAME = new URLSearchParams(location.search).get('name') || 'KOUSHIK';
+// ==============================================================================
+
+const COLS = 110, K = COLS / 90, SW = 90, SH = 107, ROWS = Math.round(SH * K / 2);
+const DURATION = 11000;
+const RAMP = ' .:-=+*#%@';
+
+const off = document.createElement('canvas');
+off.width = COLS; off.height = ROWS;
+const o = off.getContext('2d', { willReadFrequently: true });
+
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const wrap = document.getElementById('wrap');
+let cw, rh, fs;
+function resize() {
+  const w = Math.min(window.innerWidth - 16, 520), dpr = window.devicePixelRatio || 1;
+  cw = w / COLS; rh = cw * 2; fs = cw / 0.6;
+  cv.style.width = w + 'px'; cv.style.height = rh * ROWS + 'px';
+  cv.width = w * dpr; cv.height = rh * ROWS * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const rad = d => d * Math.PI / 180;
+const parts = Array.from({ length: 40 }, (_, i) => ({ a: i * 2.4, r: 28 + (i * 37 % 30), s: 0.6 + (i % 5) * 0.2 }));
+let finsDone = 0, letters = 0;
+
+function ray(bx, by, ang, len, bend, c0, c1, w) {
+  const tx = bx + Math.cos(ang) * len, ty = by + Math.sin(ang) * len;
+  const cx = bx + Math.cos(ang - 0.3) * len * 0.55 + bend * 0.4, cy = by + Math.sin(ang - 0.3) * len * 0.55;
+  const g = o.createLinearGradient(bx, by, tx, ty);
+  g.addColorStop(0, c0); g.addColorStop(1, c1);
+  o.strokeStyle = g; o.lineWidth = w;
+  o.beginPath(); o.moveTo(bx, by); o.quadraticCurveTo(cx, cy, tx + bend, ty); o.stroke();
+}
+// rays appear one after another; each flashes white the moment it is finished
+function fan(n, prog, t, make) {
+  for (let i = 0; i < n; i++) {
+    const k = prog * n - i;
+    if (k <= 0) continue;
+    if (k >= 1) finsDone++;
+    const r = make(i, i / (n - 1)), grow = Math.min(1, k / 1.5);
+    const flash = prog < 1 && k < 2;
+    o.globalAlpha = flash ? 1 : 0.72 + 0.28 * Math.sin(t * 3 + i);
+    ray(r.bx, r.by, r.ang, r.len * grow, r.bend, flash ? '#fff' : r.c0, flash ? '#fff' : r.c1, r.w || 2.2);
+  }
+  o.globalAlpha = 1;
+}
+
+function drawFish(t, p) {
+  const e = (a, b) => { const x = clamp((p - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+  const body = e(.06, .3), tailP = e(.28, .62), dors = e(.58, .72), vent = e(.68, .86), q = e(.04, .9);
+  finsDone = 0;
+  o.fillStyle = '#000'; o.fillRect(0, 0, COLS, ROWS);
+  o.save(); o.scale(K, K / 2); o.translate(5, 0); o.lineCap = 'round';
+
+  // plankton spiralling in
+  o.fillStyle = '#aef';
+  for (const s of parts) {
+    const r = s.r * (1 - 0.85 * q), a = s.a + q * 4 * s.s + t * 0.2;
+    o.globalAlpha = 0.75; o.fillRect(34 + Math.cos(a) * r * 1.2, 46 + Math.sin(a) * r, 1.3, 1.3);
+  }
+  o.globalAlpha = 1;
+  // spark in the dark water
+  const sp = 1 - e(.08, .3);
+  if (sp > 0) {
+    const g = o.createRadialGradient(21, 46, 0, 21, 46, 8);
+    g.addColorStop(0, '#fff'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    o.globalAlpha = sp; o.fillStyle = g; o.beginPath(); o.arc(21, 46, 8, 0, 7); o.fill(); o.globalAlpha = 1;
+  }
+
+  o.translate(34, 46); o.rotate(Math.sin(t * 1.4) * 0.035); o.translate(-34, -46);
+
+  // big tail veil
+  fan(40, tailP, t, (i, u) => ({
+    bx: 34, by: 46 + (u - .5) * 6, ang: rad(-95 + 165 * u) - 0.05, len: 30 + 13 * Math.sin(u * 2.8 + 0.3),
+    bend: Math.sin(t * 1.8 + i * 0.3) * 2.5, c0: '#2aa6b4', c1: u < .55 ? '#cfae3e' : '#dc8c3a', w: 2.6
+  }));
+  // dorsal fin along the back
+  fan(14, dors, t, (i, u) => ({
+    bx: 20 + i * 1.7, by: 40, ang: rad(-118 + i * 3.6), len: 9 + 10 * Math.sin((i + 1) / 15 * Math.PI),
+    bend: Math.sin(t * 2 + i) * 2, c0: '#2a9a8f', c1: '#b9b63a'
+  }));
+  // long fins falling along the underside
+  fan(14, vent, t, (i, u) => ({
+    bx: 19 + i * 1.9, by: 51, ang: rad(80 - i * 3.2), len: 14 + i * 1.0,
+    bend: Math.sin(t * 2.2 + i) * 3, c0: '#2a9a8f', c1: '#d7a640'
+  }));
+  fan(6, vent, t, (i) => ({ bx: 21, by: 49, ang: rad(20 + i * 10), len: 9, bend: Math.sin(t * 5 + i), c0: '#3cc', c1: '#9fd', w: 1.8 }));
+
+  // body, drawn from the nose back to the tail
+  if (body > 0) {
+    o.save(); o.beginPath(); o.rect(0, 0, 4 + 36 * body, SH); o.clip();
+    const g = o.createLinearGradient(4, 0, 38, 0);
+    g.addColorStop(0, '#38c4d0'); g.addColorStop(.55, '#2f9aa0'); g.addColorStop(1, '#6f9a45');
+    o.fillStyle = g;
+    o.beginPath(); o.ellipse(22, 46, 16, 7.5, -0.05, 0, 7); o.fill();
+    o.beginPath(); o.ellipse(13, 46, 9, 7, 0.1, 0, 7); o.fill();
+    o.strokeStyle = 'rgba(255,255,255,.35)'; o.lineWidth = 0.9;
+    for (let i = 0; i < 7; i++) { o.beginPath(); o.moveTo(20 + i * 2.6, 40 + i * 0.3); o.lineTo(20 + i * 2.6, 52 - i * 0.3); o.stroke(); }
+    o.fillStyle = '#000'; o.beginPath(); o.arc(12, 43, 2.2, 0, 7); o.fill();
+    o.strokeStyle = '#fff'; o.lineWidth = 0.8; o.stroke();
+    o.restore();
+  }
+  o.restore();
+
+  // name typed in under the fish
+  const n = Math.floor(e(.9, 1) * NAME.length + 0.0001);
+  if (n > 0) {
+    o.save(); o.scale(K, K / 2);
+    const size = Math.min(22, 76 / (NAME.length * 0.62));
+    o.font = `bold ${size}px ui-monospace, Menlo, Consolas, monospace`;
+    o.textBaseline = 'middle'; o.textAlign = 'left'; o.fillStyle = '#ffe9a8';
+    o.fillText(NAME.slice(0, n), 45 - o.measureText(NAME).width / 2, 92);
+    o.restore();
+  }
+}
+
+function render() {
+  const d = o.getImageData(0, 0, COLS, ROWS).data;
+  ctx.fillStyle = '#03070d'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.font = `${fs}px ui-monospace, Menlo, Consolas, monospace`; ctx.textBaseline = 'top';
+  letters = 0;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const i = (r * COLS + c) * 4, R = d[i], G = d[i + 1], B = d[i + 2];
+    const lum = (0.3 * R + 0.59 * G + 0.11 * B) / 255;
+    if (lum < 0.06) continue;
+    letters++;
+    const ch = RAMP[Math.min(RAMP.length - 1, Math.floor(Math.pow(lum, 0.8) * RAMP.length))];
+    const f = Math.min(255 / Math.max(R, G, B, 1), 1.4);
+    ctx.fillStyle = `rgb(${Math.min(255, R * f) | 0},${Math.min(255, G * f) | 0},${Math.min(255, B * f) | 0})`;
+    ctx.fillText(ch, c * cw, r * rh);
+  }
+}
+
+const tm = document.getElementById('tm'), st = document.getElementById('st');
+const handle = 'inspired by @dwcminh.ascii';
+let start = performance.now(), last = 0, hudAt = 0;
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (now - last < 33) return; last = now;
+  const el = now - start, p = still ? 1 : clamp(el / DURATION, 0, 1);
+  drawFish(now / 1000, p); render();
+  if (now - hudAt > 120) {
+    hudAt = now;
+    tm.textContent = 't ' + (el / 1000).toFixed(2) + 's';
+    st.textContent = handle + '\nbeats ' + Math.floor(el / 800) + '   fins ' + finsDone + '   colours 1   sparks ' + parts.length + '\nletters ' + letters.toLocaleString();
+  }
+}
+cv.addEventListener('click', () => { start = performance.now(); });
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
